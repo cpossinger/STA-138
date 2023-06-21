@@ -1,0 +1,79 @@
+---
+title: "Homework 5"
+subtitle: STA 138 | Camden Possinger | Winter 2022
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+wd <- "/home/cam/Documents/STA 138/Homework"
+knitr::opts_knit$set(root.dir = wd)
+```
+
+```{r, include = FALSE}
+library(magrittr)
+library(kableExtra)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(ggpubr)
+```
+
+```{r}
+
+largework <- read.csv("largework.csv")
+
+#largework$gender %<>% as.factor 
+#largework$marriage %<>% as.factor 
+#largework$y %<>% as.factor 
+
+```
+
+
+## 1. Randomly subset about half of your data as a training set, and using this, report the best model according to forward stepwise selection with AIC that you obtain.
+
+```{r}
+
+set.seed(502)
+
+largework_len <- largework %>% nrow
+
+train_set_ind <- sample(largework_len,largework_len / 2) 
+
+train_set <- largework[train_set_ind,]
+test_set <- largework[-train_set_ind,]
+
+
+best_model <- step(glm(y~1,family = "binomial",data = train_set),
+                   scope = ~gender*age*marriage*min*chol*sysbp*height,
+                   direction = "forward",
+                   trace = 0)
+
+print(best_model$formula)
+
+```
+
+## 2.  Using the model obtained above with the testing set, test for evidence of nonzero coefficients, using α = 0.1; Interpret your results.
+
+```{r}
+best_model_test_sum <- glm(y ~ chol + sysbp + gender + height:chol + height:sysbp + sysbp:gender, "binomial", test_set) %>% summary
+
+best_model_train_sum <- best_model %>% summary
+
+print("Test Set: ")
+best_model_test_sum$coefficients[,c(1,4)]
+
+
+print("Training Set: ")
+best_model_train_sum$coefficients[,c(1,4)]
+
+
+
+```
+In this model using the test set there are no variables that are significant using $\alpha = 0.1$ which using Bonferroni correction would be $\alpha = 0.1/7$. This is interesting because when we use the training set there are variables that are significant. 
+
+

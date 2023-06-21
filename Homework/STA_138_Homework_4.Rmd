@@ -1,0 +1,210 @@
+---
+title: "Homework 4"
+subtitle: STA 138 | Camden Possinger | Winter 2022
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+wd <- "/home/cam/Documents/STA 138/Homework"
+knitr::opts_knit$set(root.dir = wd)
+```
+
+```{r, include = FALSE}
+library(magrittr)
+library(kableExtra)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(ggpubr)
+```
+
+## 1.   For the model $\log(\frac{\pi}{1-\pi}) = \alpha + \beta_1x_1 + \beta_2x_2$
+
+
+```{r}
+
+angina <- read.csv("angina.csv")
+angina %<>% select(y,myofam,age)
+
+angina$myofam %>% as.factor 
+
+```
+
+
+### (a) What are the estimated parameters for this model?
+
+```{r}
+
+no_interact <- glm(y ~ myofam + age, data = angina, family = "binomial")
+est_params <- data.frame("Parameter" = c("Alpha","Beta 1","Beta 2"),
+                         "Estimated_Values" = no_interact$coefficients)
+
+est_params %>% kbl
+
+```
+
+
+### (b) Interpret the parameters. From this model, what would you estimate to be the probability of angina for a patient with age 50 and with a family history of myocardial infarction?
+
+
+$\hat{\alpha}$ is the estimated log-odds ratio when a patient does not have a family history of myocardial infarction and has 0 age  
+
+$\hat{\beta_1}$ is the estimated log-odds ratio of angina between when a patient does have a family history of myocardial infarction and when a patient does not keeping age constant.  
+
+$\hat{\beta_2}$ is the estimated log-odds ratio of angina based on a 1 year change in age keeping everything else constant. 
+
+
+```{r}
+
+est_odds <- no_interact %>% predict(newdata = list("myofam" = "yes", "age" = 50)) %>% unname 
+
+est_prob <- est_odds %>% plogis
+
+print(est_prob)
+
+```
+Here the estimated probability of this individual who has a family history of myocardial infarction and is aged 50 is about 0.78, which is fairly high.
+
+
+### (c) Plot both the fitted log-odds and fitted probability of angina for patients as a function of age and myofam status.
+
+```{r}
+max_age <- angina$age %>% max
+min_age <- angina$age %>% min
+
+age <- min_age:max_age
+
+
+fitted_odds_1 <- no_interact %>% predict(newdata = data.frame("age" = age, "myofam" = rep("yes",age %>% length))) %>% unname 
+fitted_odds_0 <- no_interact %>% predict(newdata = data.frame("age" = age, "myofam" = rep("no",age %>% length))) %>% unname 
+
+fitted_probs_1 <- fitted_odds_1 %>% plogis
+fitted_probs_0 <- fitted_odds_0 %>% plogis
+
+plot_data <- data.frame(age,fitted_odds_1,fitted_odds_0,fitted_probs_1,fitted_odds_0)
+
+fitted_odds_plot <- ggplot()+geom_line(data = plot_data, aes(x = age, y = fitted_odds_1,color = "yes"))+
+  geom_line(data = plot_data, aes(x = age, y = fitted_odds_0,color = "no"))+
+  xlab("Age")+
+  ylab("Fitted Log-Odds")
+
+fitted_probs_plot <-  ggplot()+geom_line(data = plot_data, aes(x = age, y = fitted_probs_1,color = "yes"))+
+  geom_line(data = plot_data, aes(x = age, y = fitted_probs_0,color = "no"))+
+  xlab("Age")+
+  ylab("Fitted Probabilities")
+
+
+ggarrange(fitted_odds_plot, fitted_probs_plot, nrow = 1)
+
+```
+
+### (d) Under this model, estimate the odds ratio of angina for a patient if they did have a family history of myocardial infarction vs. the same patient if they didn’t have such a history. Does it depend on age?
+
+```{r}
+
+est_odds_ratios <- data.frame( "Parameter" = c("Alpha","Beta 1","Beta 2"), 
+                         "Estimated_Odds_Ratios" = no_interact$coefficients %>% exp)
+
+est_odds_ratios %>% kbl
+
+
+```
+
+In this case the estimated log odds ratios for angina for a patient shows that as the patient ages the odds of angina increases by about 9% while if a patient has a family history of myocardial infarction the odds of angina increases by about 742%. Angina does depend on age, but mostly depends on a family history of myocardial infarction. Here the odds ratio for family history of myocardial infarction does not depend on age.
+
+$\frac{exp(-3.1481617 + (0.0887068)x_2)}{exp(-5.2783645 + (0.0887068)x_2)}$ does not depend on $x_2$
+
+
+
+## 2.   For the model $\log(\frac{\pi}{1-\pi}) = \alpha + \beta_1x_1 + \beta_2x_2 + \beta_3 x_1 \cdot x_2$
+
+
+### (a) What are the estimated parameters for this model?
+
+```{r}
+
+interact <- glm(y ~ myofam + age + myofam:age, data = angina, family = "binomial")
+est_params <- data.frame("Parameter" = c("Alpha","Beta 1","Beta 2","Beta 3"),
+                         "Estimated_Values" = interact$coefficients)
+
+est_params %>% kbl
+
+```
+
+
+### (b) Interpret the parameters. From this model, what would you estimate to be the probability of angina for a patient with age 50 and with a family history of myocardial infarction?
+
+$\hat{\alpha}$ is the estimated log odds-ratio of angina when both age = 0 and a patient does not have a family history of myocardial infarction.
+
+$\hat{\beta_1}$ is the estimated log odds-ratio of angina between if a patient has a family history of myocardial infarction or not when age = 0. 
+
+$\hat{\beta_2}$ is the estimated log odds-ratio of angina between a one year difference in a patient's age when a patient does not have a family history of myocardial infarction. 
+
+$\hat{\beta_3}$ quantifies the interaction effect between age and family history of myocardial infarction on the presence of angina. 
+
+
+```{r}
+
+est_odds <- interact %>% predict(newdata = list("myofam" = "yes", "age" = 50, "myofamyes:age" = 50)) %>% unname 
+
+est_prob <- est_odds %>% plogis
+
+print(est_prob)
+
+```
+Here the estimated probability of this individual who has a family history of myocardial infarction and is aged 50 is about 0.80, which is still high and doesn't change much from the the model in question 1 
+
+
+### (c) Plot both the fitted log-odds and fitted probability of angina for patients as a function of age and myofam status.
+
+```{r}
+
+fitted_odds_1 <- interact %>% predict(newdata = data.frame("age" = age, "myofam" = rep("yes",age %>% length))) %>% unname 
+fitted_odds_0 <- interact %>% predict(newdata = data.frame("age" = age, "myofam" = rep("no",age %>% length))) %>% unname 
+
+fitted_probs_1 <- fitted_odds_1 %>% plogis
+fitted_probs_0 <- fitted_odds_0 %>% plogis
+
+plot_data <- data.frame(age,fitted_odds_1,fitted_odds_0,fitted_probs_1,fitted_odds_0)
+
+fitted_odds_plot <- ggplot()+geom_line(data = plot_data, aes(x = age, y = fitted_odds_1,color = "yes"))+
+  geom_line(data = plot_data, aes(x = age, y = fitted_odds_0,color = "no"))+
+  xlab("Age")+
+  ylab("Fitted Log-Odds")
+
+fitted_probs_plot <-  ggplot()+geom_line(data = plot_data, aes(x = age, y = fitted_probs_1,color = "yes"))+
+  geom_line(data = plot_data, aes(x = age, y = fitted_probs_0,color = "no"))+
+  xlab("Age")+
+  ylab("Fitted Probabilities")
+
+
+ggarrange(fitted_odds_plot, fitted_probs_plot, nrow = 1)
+
+
+
+
+```
+
+### (d) Under this model, estimate the odds ratio of angina for a patient if they did have a family history of myocardial infarction vs. the same patient if they didn’t have such a history. Does it depend on age?
+
+```{r}
+
+est_odds_ratios <- data.frame("Parameter" = c("Alpha","Beta 1","Beta 2","Beta 3"),      
+                         "Estimated_Odds_Ratios" = interact$coefficients %>% exp)
+
+est_odds_ratios %>% kbl
+
+interact_sum <- interact %>% summary
+p_values <- data.frame("Parameter" = c("Alpha","Beta 1","Beta 2","Beta 3"),      
+                         "p-values" =  interact_sum$coefficients[,4] )
+p_values %>% kbl
+```
+
+Here the odds-ratio depends on age since the interaction term is included. 
+
+$\frac{exp(-7.1879268 + (0.1715519)x_2)}{exp(-4.0470314 + (0.0655033)x_2)}$ depends on $x_2$
